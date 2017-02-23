@@ -1,0 +1,9 @@
+ros-kinetic-srv-tools (0.0.2-0xenial) xenial; urgency=high
+
+  * added python setup files and wet'ed plot tools
+  * wet repo
+  * Contributors: Miquel Massot
+
+ -- Miquel Massot <miquel.massot@uib.es>  Wed, 22 Feb 2017 23:00:00 -0000
+
+
