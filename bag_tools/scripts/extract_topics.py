@@ -12,9 +12,9 @@ modification, are permitted provided that the following conditions are met:
     * Redistributions in binary form must reproduce the above copyright
       notice, this list of conditions and the following disclaimer in the
       documentation and/or other materials provided with the distribution.
-    * Neither the name of Systems, Robotics and Vision Group, University of 
-      the Balearican Islands nor the names of its contributors may be used to 
-      endorse or promote products derived from this software without specific 
+    * Neither the name of Systems, Robotics and Vision Group, University of
+      the Balearican Islands nor the names of its contributors may be used to
+      endorse or promote products derived from this software without specific
       prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
@@ -39,42 +39,29 @@ import os
 import sys
 import argparse
 
-def change_topics(inbag,outbag,replacements):
+def extract_topics(inbag,outbag,topics):
   rospy.loginfo('   Processing input bagfile: %s', inbag)
   rospy.loginfo('  Writing to output bagfile: %s', outbag)
-  rospy.loginfo('               Replacements: %s', replacements)
+  rospy.loginfo('          Extracting topics: %s', topics)
 
   outbag = rosbag.Bag(outbag,'w')
   for topic, msg, t in rosbag.Bag(inbag,'r').read_messages():
-    if topic in replacements:
-        topic = replacements[topic]
-    outbag.write(topic, msg, t)
+    if topic in topics:
+      outbag.write(topic, msg, t)
   rospy.loginfo('Closing output bagfile and exit...')
   outbag.close();
 
-def replacement(replace_string):
-  pair = replace_string.split('=', 1)
-  if len(pair) != 2:
-    raise argparse.ArgumentTypeError("Replace string must have the form /topic=/new_topic")
-  if pair[0][0] != '/':
-    pair[0] = '/'+pair[0]
-  if pair[1][0] != '/':
-    pair[1] = '/'+pair[1]
-  return pair[0], pair[1]
-
 if __name__ == "__main__":
+  rospy.init_node('extract_topics')
   parser = argparse.ArgumentParser(
-      description='changes topic names inside a bagfile.')
+      description='Extracts topics from a bagfile into another bagfile.')
   parser.add_argument('inbag', help='input bagfile')
   parser.add_argument('outbag', help='output bagfile')
-  parser.add_argument('replacement', type=replacement, nargs='+', help='replacement in form "TOPIC=NEW_TOPIC", e.g. /laser1/scan=/laser2/scan')
+  parser.add_argument('topics', nargs='+', help='topics to extract')
   args = parser.parse_args()
-  replacements = {}
-  for topic, new_topic in args.replacement:
-    replacements[topic] = new_topic
 
   try:
-    change_topics(args.inbag,args.outbag,replacements)
+    extract_topics(args.inbag,args.outbag,args.topics)
   except Exception, e:
     import traceback
     traceback.print_exc()

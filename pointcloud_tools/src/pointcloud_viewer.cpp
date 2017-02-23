@@ -48,8 +48,7 @@
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/features/feature.h>
 #include <pcl/io/pcd_io.h>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/filters/passthrough.h>
+#include <pcl/filters/statistical_outlier_removal.h>
 
 using pcl::visualization::PointCloudColorHandlerGenericField;
 
@@ -60,58 +59,41 @@ typedef pcl::PointCloud<PointRGB> PointCloudRGB;
 
 // Global data
 sensor_msgs::PointCloud2ConstPtr cloud_, cloud_old_;
-boost::mutex m;
+boost::mutex m_;
 bool viewer_initialized_;
 bool save_cloud_;
 std::string pcd_filename_;
 int counter_;
+ros::WallTimer save_timer_;
+
+PointCloud cloud_xyz_;
+PointCloudRGB cloud_xyz_rgb_;
 
 void cloud_cb(const sensor_msgs::PointCloud2ConstPtr& cloud)
 {
-  m.lock ();
-  printf("\rPointCloud with %d data points (%s), stamp %f, and frame %s.",
-      cloud->width * cloud->height, pcl::getFieldsList(*cloud).c_str(), 
-      cloud->header.stamp.toSec(), cloud->header.frame_id.c_str());
+  m_.lock ();
+  ROS_INFO_STREAM("[PointCloudViewer:] Pointcloud received.");
   cloud_ = cloud;
-  m.unlock();
-}
-
-PointCloudRGB::Ptr filter(PointCloudRGB::Ptr cloud, double voxel_size)
-{
-  PointCloudRGB::Ptr cloud_filtered_ptr(new PointCloudRGB);
-
-  // Downsampling using voxel grid
-  pcl::VoxelGrid<PointRGB> grid_;
-  PointCloudRGB::Ptr cloud_downsampled_ptr(new PointCloudRGB);
-
-  grid_.setLeafSize(voxel_size,
-                    voxel_size,
-                    voxel_size);
-  grid_.setDownsampleAllData(true);
-  grid_.setInputCloud(cloud);
-  grid_.filter(*cloud_downsampled_ptr);
-
-  return cloud_downsampled_ptr;
+  m_.unlock();
 }
 
 void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void* nothing)
 {
-  if (event.getKeySym() == "space" && event.keyDown())
+  if (event.getKeySym() == "space" && event.keyDown()) {
+    ROS_INFO("[PointCloudViewer:] Saving pointcloud, please wait...");
     save_cloud_ = true;
+  }
 }
 
 void updateVisualization()
 {
-  PointCloud                    cloud_xyz;
-  PointCloudRGB                 cloud_xyz_rgb;
   EIGEN_ALIGN16 Eigen::Matrix3f covariance_matrix;
   Eigen::Vector4f               xyz_centroid;
 
   ros::WallDuration d(0.01);
   bool rgb = false;
-  //std::vector<sensor_msgs::PointField> fields;
   std::vector<pcl::PCLPointField> fields;
-  
+
   // Create the visualizer
   pcl::visualization::PCLVisualizer viewer("Point Cloud Viewer");
 
@@ -131,112 +113,121 @@ void updateVisualization()
 
     if(cloud_old_ == cloud_)
       continue;
-    m.lock ();
-    
+
     // Convert to PointCloud<T>
+    m_.lock ();
     if(pcl::getFieldIndex(*cloud_, "rgb") != -1)
     {
       rgb = true;
-      pcl::fromROSMsg(*cloud_, cloud_xyz_rgb);
+      pcl::fromROSMsg(*cloud_, cloud_xyz_rgb_);
     }
     else
     {
       rgb = false;
-      pcl::fromROSMsg(*cloud_, cloud_xyz);
-      pcl::getFields(cloud_xyz, fields);
+      pcl::fromROSMsg(*cloud_, cloud_xyz_);
+      pcl::getFields(cloud_xyz_, fields);
     }
     cloud_old_ = cloud_;
-    m.unlock();
+    m_.unlock();
 
     // Delete the previous point cloud
     viewer.removePointCloud("cloud");
-    
+
     // If no RGB data present, use a simpler white handler
-    if(rgb && pcl::getFieldIndex(cloud_xyz_rgb, "rgb", fields) != -1 && 
-      cloud_xyz_rgb.points[0].rgb != 0)
+    if(rgb && pcl::getFieldIndex(cloud_xyz_rgb_, "rgb", fields) != -1 &&
+      cloud_xyz_rgb_.points[0].rgb != 0)
     {
       // Initialize the camera view
       if(!viewer_initialized_)
       {
-        pcl::computeMeanAndCovarianceMatrix(cloud_xyz_rgb, covariance_matrix, xyz_centroid);
+        pcl::computeMeanAndCovarianceMatrix(cloud_xyz_rgb_, covariance_matrix, xyz_centroid);
         viewer.initCameraParameters();
         viewer.setCameraPosition(xyz_centroid(0), xyz_centroid(1), xyz_centroid(2)+3.0, 0, -1, 0);
-        ROS_INFO_STREAM("[PointCloudViewer:] Point cloud viewer camera initialized in: [" << 
+        ROS_INFO_STREAM("[PointCloudViewer:] Point cloud viewer camera initialized in: [" <<
           xyz_centroid(0) << ", " << xyz_centroid(1) << ", " << xyz_centroid(2)+3.0 << "]");
         viewer_initialized_ = true;
       }
       // Show the point cloud
       pcl::visualization::PointCloudColorHandlerRGBField<PointRGB> color_handler(
-        cloud_xyz_rgb.makeShared());
-      viewer.addPointCloud(cloud_xyz_rgb.makeShared(), color_handler, "cloud");
-
-      // Save pcd
-      if (save_cloud_ && cloud_xyz_rgb.size() > 0)
-      {
-        if (pcl::io::savePCDFile(pcd_filename_, cloud_xyz_rgb) == 0)
-          ROS_INFO_STREAM("[PointCloudViewer:] Pointcloud saved into: " << pcd_filename_);
-        else 
-          ROS_ERROR_STREAM("[PointCloudViewer:] Problem saving " << pcd_filename_.c_str());
-        save_cloud_ = false;
-      }
-
+        cloud_xyz_rgb_.makeShared());
+      viewer.addPointCloud(cloud_xyz_rgb_.makeShared(), color_handler, "cloud");
     }
     else
     {
       // Initialize the camera view
       if(!viewer_initialized_)
       {
-        pcl::computeMeanAndCovarianceMatrix(cloud_xyz_rgb, covariance_matrix, xyz_centroid);
+        pcl::computeMeanAndCovarianceMatrix(cloud_xyz_, covariance_matrix, xyz_centroid);
         viewer.initCameraParameters();
         viewer.setCameraPosition(xyz_centroid(0), xyz_centroid(1), xyz_centroid(2)+3.0, 0, -1, 0);
-        ROS_INFO_STREAM("[PointCloudViewer:] Point cloud viewer camera initialized in: [" << 
+        ROS_INFO_STREAM("[PointCloudViewer:] Point cloud viewer camera initialized in: [" <<
           xyz_centroid(0) << ", " << xyz_centroid(1) << ", " << xyz_centroid(2)+3.0 << "]");
         viewer_initialized_ = true;
       }
 
-      // Some xyz_rgb point clouds have incorrect rgb field. Detect and convert to xyz.
-      if(pcl::getFieldIndex(cloud_xyz_rgb, "rgb", fields) != -1)
-      {
-        if(cloud_xyz_rgb.points[0].rgb == 0)
-        {
-          pcl::copyPointCloud(cloud_xyz_rgb, cloud_xyz);
-        }
-      }
-      
       // Show the xyz point cloud
-      PointCloudColorHandlerGenericField<Point> color_handler (cloud_xyz.makeShared(), "z");
+      PointCloudColorHandlerGenericField<Point> color_handler (cloud_xyz_.makeShared(), "z");
       if (!color_handler.isCapable ())
       {
         ROS_WARN_STREAM("[PointCloudViewer:] Cannot create curvature color handler!");
         pcl::visualization::PointCloudColorHandlerCustom<Point> color_handler(
-        cloud_xyz.makeShared(), 255, 0, 255);
+        cloud_xyz_.makeShared(), 255, 0, 255);
       }
-      viewer.addPointCloud(cloud_xyz.makeShared(), color_handler, "cloud");
-
-      // Save pcd
-      if (save_cloud_ && cloud_xyz.size() > 0)
-      {
-        if (pcl::io::savePCDFile(pcd_filename_, cloud_xyz) == 0)
-          ROS_INFO_STREAM("[PointCloudViewer:] Pointcloud saved into: " << pcd_filename_);
-        else 
-          ROS_ERROR_STREAM("[PointCloudViewer:] Problem saving " << pcd_filename_.c_str());
-        save_cloud_ = false;
-      }
+      viewer.addPointCloud(cloud_xyz_.makeShared(), color_handler, "cloud");
     }
 
     counter_++;
   }
 }
 
-void sigIntHandler(int sig)
+void saveCallback(const ros::WallTimerEvent&)
 {
-  exit(0);
+  if (!save_cloud_) return;
+
+  if (cloud_xyz_rgb_.size() > 0)
+  {
+    // Remove outliers
+    pcl::PointCloud<PointRGB>::Ptr cloud_filtered (new pcl::PointCloud<PointRGB>);
+    pcl::StatisticalOutlierRemoval<PointRGB> sor;
+    sor.setInputCloud (cloud_xyz_rgb_.makeShared());
+    sor.setMeanK (50);
+    sor.setStddevMulThresh (1.0);
+    sor.filter (*cloud_filtered);
+
+    if (pcl::io::savePCDFile(pcd_filename_, *cloud_filtered) == 0)
+      ROS_INFO_STREAM("[PointCloudViewer:] Pointcloud saved into: " << pcd_filename_);
+    else
+      ROS_ERROR_STREAM("[PointCloudViewer:] Problem saving " << pcd_filename_.c_str());
+    save_cloud_ = false;
+  }
+
+  if (cloud_xyz_.size() > 0)
+  {
+    // Remove outliers
+    pcl::PointCloud<Point>::Ptr cloud_filtered (new pcl::PointCloud<Point>);
+    pcl::StatisticalOutlierRemoval<Point> sor;
+    sor.setInputCloud (cloud_xyz_.makeShared());
+    sor.setMeanK (50);
+    sor.setStddevMulThresh (1.0);
+    sor.filter (*cloud_filtered);
+
+    if (pcl::io::savePCDFile(pcd_filename_, *cloud_filtered) == 0)
+      ROS_INFO_STREAM("[PointCloudViewer:] Pointcloud saved into: " << pcd_filename_);
+    else
+      ROS_ERROR_STREAM("[PointCloudViewer:] Problem saving " << pcd_filename_.c_str());
+    save_cloud_ = false;
+  }
 }
+
+// void sigIntHandler(int sig)
+// {
+//   exit(0);
+// }
 
 /* ---[ */
 int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "pointcloud_viewer", ros::init_options::NoSigintHandler);
+  ros::init(argc, argv, "pointcloud_viewer");//, ros::init_options::NoSigintHandler);
   ros::NodeHandle nh;
   ros::NodeHandle nh_priv("~");
   viewer_initialized_ = false;
@@ -249,11 +240,11 @@ int main(int argc, char** argv)
   // Create a ROS subscriber
   ros::Subscriber sub = nh.subscribe("input", 30, cloud_cb);
 
-  ROS_INFO("Subscribing to %s for PointCloud2 messages...", nh.resolveName ("input").c_str ());
+  ROS_INFO("[PointCloudViewer:] Subscribing to %s for PointCloud2 messages...", nh.resolveName ("input").c_str ());
 
-  signal(SIGINT, sigIntHandler);
-
+  // signal(SIGINT, sigIntHandler);
   boost::thread visualization_thread(&updateVisualization);
+  save_timer_ = nh.createWallTimer(ros::WallDuration(1), &saveCallback);
 
   // Spin
   ros::spin();

@@ -12,9 +12,9 @@ modification, are permitted provided that the following conditions are met:
     * Redistributions in binary form must reproduce the above copyright
       notice, this list of conditions and the following disclaimer in the
       documentation and/or other materials provided with the distribution.
-    * Neither the name of Systems, Robotics and Vision Group, University of 
-      the Balearican Islands nor the names of its contributors may be used to 
-      endorse or promote products derived from this software without specific 
+    * Neither the name of Systems, Robotics and Vision Group, University of
+      the Balearican Islands nor the names of its contributors may be used to
+      endorse or promote products derived from this software without specific
       prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
@@ -34,36 +34,39 @@ PKG = 'bag_tools' # this package name
 
 import roslib; roslib.load_manifest(PKG)
 import rospy
+import rosbag
 import os
 import sys
 import argparse
-import glob
-import subprocess
 
-def process(in_dir,out_dir,command):
-    bagfiles = glob.glob(in_dir + "/*.bag")
-    for bagfile in bagfiles:
-        outbag = out_dir + "/" + os.path.basename(bagfile)
-        if os.path.exists(outbag):
-            rospy.loginfo('%s exists, skipping.', outbag)
-        else:
-            cmd = command.split()
-            cmd.append("-i")
-            cmd.append(bagfile)
-            cmd.append("-o")
-            cmd.append(outbag)
-            subprocess.check_call(cmd)
+def remove_tf(inbag,outbag,frame_ids):
+  rospy.loginfo('   Processing input bagfile: %s', inbag)
+  rospy.loginfo('  Writing to output bagfile: %s', outbag)
+  rospy.loginfo('         Removing frame_ids: %s', ' '.join(frame_ids))
+
+  outbag = rosbag.Bag(outbag,'w')
+  for topic, msg, t in rosbag.Bag(inbag,'r').read_messages():
+      if topic == "/tf":
+          new_transforms = []
+          for transform in msg.transforms:
+              if transform.header.frame_id not in frame_ids and transform.child_frame_id not in frame_ids:
+                  new_transforms.append(transform)
+          msg.transforms = new_transforms
+      outbag.write(topic, msg, t)
+  rospy.loginfo('Closing output bagfile and exit...')
+  outbag.close();
 
 if __name__ == "__main__":
+  rospy.init_node('remove_tf')
   parser = argparse.ArgumentParser(
-      description='batch processes all bagfiles in INPUT_DIR, writing output to OUTPUT_DIR by calling given command with -i and -o arguments.')
-  parser.add_argument('-i', metavar='INPUT_DIR', required=True, help='input directory with input bagfiles')
-  parser.add_argument('-o', metavar='OUTPUT_DIR', required=True, help='output directory for bagfiles')
-  parser.add_argument('-c', metavar='COMMAND', required=True, help='command to execute with each bagfile as input and with same name in output OUTPUT_DIR')
+      description='removes all transforms from the /tf topic that contain one of the given frame_ids in the header as parent or child.')
+  parser.add_argument('-i', metavar='INPUT_BAGFILE', required=True, help='input bagfile')
+  parser.add_argument('-o', metavar='OUTPUT_BAGFILE', required=True, help='output bagfile')
+  parser.add_argument('-f', metavar='FRAME_ID', required=True, help='frame_id(s) of the transforms to remove from the /tf topic', nargs='+')
   args = parser.parse_args()
 
   try:
-    process(args.i,args.o,args.c)
+    remove_tf(args.i,args.o,args.f)
   except Exception, e:
     import traceback
     traceback.print_exc()

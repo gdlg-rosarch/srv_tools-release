@@ -12,9 +12,9 @@ modification, are permitted provided that the following conditions are met:
     * Redistributions in binary form must reproduce the above copyright
       notice, this list of conditions and the following disclaimer in the
       documentation and/or other materials provided with the distribution.
-    * Neither the name of Systems, Robotics and Vision Group, University of 
-      the Balearican Islands nor the names of its contributors may be used to 
-      endorse or promote products derived from this software without specific 
+    * Neither the name of Systems, Robotics and Vision Group, University of
+      the Balearican Islands nor the names of its contributors may be used to
+      endorse or promote products derived from this software without specific
       prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
@@ -34,41 +34,37 @@ PKG = 'bag_tools' # this package name
 
 import roslib; roslib.load_manifest(PKG)
 import rospy
-import rosbag
 import os
 import sys
 import argparse
+import glob
+import subprocess
 
-def add_offset(inbags, topics, offset):
-  for inbag in inbags:
-    outbag = "timefixed-" + inbag
-    rospy.loginfo('      Processing input bagfile: %s', inbag)
-    rospy.loginfo('     Writing to output bagfile: %s', outbag)
-    rospy.loginfo('Changing header time of topics: %s', topics)
-    rospy.loginfo('                 Adding offset: %s', offset)
-    outbag = rosbag.Bag(outbag,'w')
-    time_offset = rospy.Duration.from_sec(offset)
-    for topic, msg, t in rosbag.Bag(inbag,'r').read_messages():
-      if topic in topics:
-        if topic == "/tf":
-          for transform in msg.transforms:
-            transform.header.stamp += time_offset
-        elif msg._has_header:
-          msg.header.stamp += time_offset
-      outbag.write(topic, msg, t)
-    outbag.close()
-
+def process(in_dir,out_dir,command):
+    bagfiles = glob.glob(in_dir + "/*.bag")
+    for bagfile in bagfiles:
+        outbag = out_dir + "/" + os.path.basename(bagfile)
+        if os.path.exists(outbag):
+            rospy.loginfo('%s exists, skipping.', outbag)
+        else:
+            cmd = command.split()
+            cmd.append("-i")
+            cmd.append(bagfile)
+            cmd.append("-o")
+            cmd.append(outbag)
+            subprocess.check_call(cmd)
 
 if __name__ == "__main__":
+  rospy.init_node('batch_process')
   parser = argparse.ArgumentParser(
-      description='Changes header timestamps using given offset, can change'
-                  '/tf as well.')
-  parser.add_argument('-o', metavar='OFFSET', required=True, type=float, help='time offset to add in seconds')
-  parser.add_argument('-i', metavar='BAGFILE', required=True, help='input bagfile(s)', nargs='+')
-  parser.add_argument('-t', metavar='TOPIC', required=True, help='topics to change', nargs='+')
+      description='batch processes all bagfiles in INPUT_DIR, writing output to OUTPUT_DIR by calling given command with -i and -o arguments.')
+  parser.add_argument('-i', metavar='INPUT_DIR', required=True, help='input directory with input bagfiles')
+  parser.add_argument('-o', metavar='OUTPUT_DIR', required=True, help='output directory for bagfiles')
+  parser.add_argument('-c', metavar='COMMAND', required=True, help='command to execute with each bagfile as input and with same name in output OUTPUT_DIR')
   args = parser.parse_args()
+
   try:
-    add_offset(args.i, args.t, args.o)
+    process(args.i,args.o,args.c)
   except Exception, e:
     import traceback
     traceback.print_exc()

@@ -12,9 +12,9 @@ modification, are permitted provided that the following conditions are met:
     * Redistributions in binary form must reproduce the above copyright
       notice, this list of conditions and the following disclaimer in the
       documentation and/or other materials provided with the distribution.
-    * Neither the name of Systems, Robotics and Vision Group, University of 
-      the Balearican Islands nor the names of its contributors may be used to 
-      endorse or promote products derived from this software without specific 
+    * Neither the name of Systems, Robotics and Vision Group, University of
+      the Balearican Islands nor the names of its contributors may be used to
+      endorse or promote products derived from this software without specific
       prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
@@ -39,29 +39,43 @@ import os
 import sys
 import argparse
 
-def rpl_msg_time_with_hdr(inbag,outbag):
-  rospy.loginfo('Processing input bagfile  : %s', inbag)
-  rospy.loginfo('Writing to output bagfile : %s', outbag)
-  outbag = rosbag.Bag(outbag,'w')
-  for topic, msg, t in rosbag.Bag(inbag,'r').read_messages():
-    # This also replaces tf timestamps under the assumption 
-    # that all transforms in the message share the same timestamp
-    if topic == "/tf" and msg.transforms:
-      outbag.write(topic, msg, msg.transforms[0].header.stamp)
-    else:
-      outbag.write(topic, msg, msg.header.stamp if msg._has_header else t)
-  rospy.loginfo('Closing output bagfile and exit...')
-  outbag.close();
+def fix_bagfile(inbag, outbag, topics, offset):
+    rospy.loginfo('      Processing input bagfile: %s', inbag)
+    rospy.loginfo('     Writing to output bagfile: %s', outbag)
+    rospy.loginfo('               Changing topics: %s', topics)
+    rospy.loginfo('   Changing publishing time by: %s', offset)
+
+    outbag = rosbag.Bag(outbag, 'w')
+
+    time_offset = rospy.Duration.from_sec(offset)
+
+    count = {}
+    for topic in topics:
+      count[topic] = 0
+
+    for topic, msg, t in rosbag.Bag(inbag).read_messages():
+        if topic in topics:
+            outbag.write(topic, msg, t + time_offset)
+            count[topic] = count[topic] + 1
+        else:
+            outbag.write(topic, msg, t)
+    rospy.loginfo('Closing output bagfile.')
+    outbag.close()
+    rospy.loginfo('Changed the following:')
+    for k, v in count.iteritems():
+      rospy.loginfo( '%s:%s messages.',k,v)
 
 if __name__ == "__main__":
-
+  rospy.init_node('bag_add_time_offset')
   parser = argparse.ArgumentParser(
-      description='Create a new bagfile from an existing one replacing the message time for the header time.')
+      description='Shift the publishing time of given topics in input bagfile.')
   parser.add_argument('-o', metavar='OUTPUT_BAGFILE', required=True, help='output bagfile')
-  parser.add_argument('-i', metavar='INPUT_BAGFILE', required=True, help='input bagfile')
+  parser.add_argument('-i', metavar='INPUT_BAGFILE', required=True, help='input bagfile(s)', nargs='+')
+  parser.add_argument('-of', metavar='OFFSET', required=True, type=float, help='time offset to add in seconds')
+  parser.add_argument('-t', metavar='TOPIC', required=True, help='topic(s) to change', nargs='+')
   args = parser.parse_args()
   try:
-    rpl_msg_time_with_hdr(args.i, args.o)
+      fix_bagfile(args.i, args.o, arg.t, args.of)
   except Exception, e:
-    import traceback
-    traceback.print_exc()
+      import traceback
+      traceback.print_exc()

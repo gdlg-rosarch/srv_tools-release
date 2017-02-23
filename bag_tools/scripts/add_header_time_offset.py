@@ -12,9 +12,9 @@ modification, are permitted provided that the following conditions are met:
     * Redistributions in binary form must reproduce the above copyright
       notice, this list of conditions and the following disclaimer in the
       documentation and/or other materials provided with the distribution.
-    * Neither the name of Systems, Robotics and Vision Group, University of 
-      the Balearican Islands nor the names of its contributors may be used to 
-      endorse or promote products derived from this software without specific 
+    * Neither the name of Systems, Robotics and Vision Group, University of
+      the Balearican Islands nor the names of its contributors may be used to
+      endorse or promote products derived from this software without specific
       prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
@@ -33,30 +33,43 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 PKG = 'bag_tools' # this package name
 
 import roslib; roslib.load_manifest(PKG)
-import yaml
-import sensor_msgs.msg
+import rospy
+import rosbag
+import os
+import sys
+import argparse
 
-def parse_yaml(filename):
-  stream = file(filename, 'r')
-  calib_data = yaml.load(stream)
-  cam_info = sensor_msgs.msg.CameraInfo()
-  cam_info.width = calib_data['image_width']
-  cam_info.height = calib_data['image_height']
-  cam_info.K = calib_data['camera_matrix']['data']
-  cam_info.D = calib_data['distortion_coefficients']['data']
-  cam_info.R = calib_data['rectification_matrix']['data']
-  cam_info.P = calib_data['projection_matrix']['data']
-  cam_info.distortion_model = calib_data['distortion_model']
-  return cam_info
+def add_offset(inbags, topics, offset):
+  for inbag in inbags:
+    outbag = "timefixed-" + inbag
+    rospy.loginfo('      Processing input bagfile: %s', inbag)
+    rospy.loginfo('     Writing to output bagfile: %s', outbag)
+    rospy.loginfo('Changing header time of topics: %s', topics)
+    rospy.loginfo('                 Adding offset: %s', offset)
+    outbag = rosbag.Bag(outbag,'w')
+    time_offset = rospy.Duration.from_sec(offset)
+    for topic, msg, t in rosbag.Bag(inbag,'r').read_messages():
+      if topic in topics:
+        if topic == "/tf":
+          for transform in msg.transforms:
+            transform.header.stamp += time_offset
+        elif msg._has_header:
+          msg.header.stamp += time_offset
+      outbag.write(topic, msg, t)
+    outbag.close()
+
 
 if __name__ == "__main__":
-  import argparse
-  parser = argparse.ArgumentParser(description='Parses camera info yaml files and returns them as sensor_msgs.msg.CameraInfo.')
-  parser.add_argument('filename', help='input yaml file')
+  rospy.init_node('add_header_time_offset')
+  parser = argparse.ArgumentParser(
+      description='Changes header timestamps using given offset, can change'
+                  '/tf as well.')
+  parser.add_argument('-o', metavar='OFFSET', required=True, type=float, help='time offset to add in seconds')
+  parser.add_argument('-i', metavar='BAGFILE', required=True, help='input bagfile(s)', nargs='+')
+  parser.add_argument('-t', metavar='TOPIC', required=True, help='topics to change', nargs='+')
   args = parser.parse_args()
   try:
-    info = parse_yaml(args.filename)
-    rospy.loginfo('Read the following info from %s\n%s', args.filename, info)
+    add_offset(args.i, args.t, args.o)
   except Exception, e:
     import traceback
     traceback.print_exc()

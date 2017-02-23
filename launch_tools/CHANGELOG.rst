@@ -2,8 +2,9 @@
 Changelog for package launch_tools
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.0.2 (2017-02-23)
+------------------
+
 * preparing for indigo. changed prints for ros logs
 * added gps_to_std_gt and services_timer from fuerte
 * hydro catkinization changes

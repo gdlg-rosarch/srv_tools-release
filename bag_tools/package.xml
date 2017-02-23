@@ -1,6 +1,6 @@
 <package>
   <name>bag_tools</name>
-  <version>0.0.1</version>
+  <version>0.0.2</version>
   <description>ROS tools and scripts related to bagfiles</description>
   <maintainer email="miquel.massot@uib.es">Miquel Massot</maintainer>
 
@@ -33,7 +33,6 @@
   <run_depend>image_geometry</run_depend>
   <run_depend>camera_calibration_parsers</run_depend>
   <run_depend>libconsole-bridge-dev</run_depend>
-
   <export>
   </export>
 </package>

@@ -2,8 +2,12 @@
 Changelog for package tf_tools
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.0.2 (2017-02-23)
+------------------
+* Minnor changes
+* Add new tf tool
+* Contributors: plnegre
+
 * tf_filter added
 * hydro catkinization changes
 * added python setup files and wet'ed plot tools

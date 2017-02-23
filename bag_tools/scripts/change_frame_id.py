@@ -12,9 +12,9 @@ modification, are permitted provided that the following conditions are met:
     * Redistributions in binary form must reproduce the above copyright
       notice, this list of conditions and the following disclaimer in the
       documentation and/or other materials provided with the distribution.
-    * Neither the name of Systems, Robotics and Vision Group, University of 
-      the Balearican Islands nor the names of its contributors may be used to 
-      endorse or promote products derived from this software without specific 
+    * Neither the name of Systems, Robotics and Vision Group, University of
+      the Balearican Islands nor the names of its contributors may be used to
+      endorse or promote products derived from this software without specific
       prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
@@ -39,34 +39,33 @@ import os
 import sys
 import argparse
 
-def remove_tf(inbag,outbag,frame_ids):
+def change_frame_id(inbag,outbag,frame_id,topics):
   rospy.loginfo('   Processing input bagfile: %s', inbag)
   rospy.loginfo('  Writing to output bagfile: %s', outbag)
-  rospy.loginfo('         Removing frame_ids: %s', ' '.join(frame_ids))
+  rospy.loginfo('            Changing topics: %s', topics)
+  rospy.loginfo('           Writing frame_id: %s', frame_id)
 
   outbag = rosbag.Bag(outbag,'w')
   for topic, msg, t in rosbag.Bag(inbag,'r').read_messages():
-      if topic == "/tf":
-          new_transforms = []
-          for transform in msg.transforms:
-              if transform.header.frame_id not in frame_ids and transform.child_frame_id not in frame_ids:
-                  new_transforms.append(transform)
-          msg.transforms = new_transforms
-      outbag.write(topic, msg, t)
+    if topic in topics:
+      if msg._has_header:
+        msg.header.frame_id = frame_id
+    outbag.write(topic, msg, t)
   rospy.loginfo('Closing output bagfile and exit...')
   outbag.close();
 
 if __name__ == "__main__":
-
+  rospy.init_node('change_frame_id')
   parser = argparse.ArgumentParser(
-      description='removes all transforms from the /tf topic that contain one of the given frame_ids in the header as parent or child.')
-  parser.add_argument('-i', metavar='INPUT_BAGFILE', required=True, help='input bagfile')
+      description='reate a new bagfile from an existing one replacing the frame id of requested topics.')
   parser.add_argument('-o', metavar='OUTPUT_BAGFILE', required=True, help='output bagfile')
-  parser.add_argument('-f', metavar='FRAME_ID', required=True, help='frame_id(s) of the transforms to remove from the /tf topic', nargs='+')
+  parser.add_argument('-i', metavar='INPUT_BAGFILE', required=True, help='input bagfile')
+  parser.add_argument('-f', metavar='FRAME_ID', required=True, help='desired frame_id name in the topics')
+  parser.add_argument('-t', metavar='TOPIC', required=True, help='topic(s) to change', nargs='+')
   args = parser.parse_args()
 
   try:
-    remove_tf(args.i,args.o,args.f)
+    change_frame_id(args.i,args.o,args.f,args.t)
   except Exception, e:
     import traceback
     traceback.print_exc()

@@ -12,9 +12,9 @@ modification, are permitted provided that the following conditions are met:
     * Redistributions in binary form must reproduce the above copyright
       notice, this list of conditions and the following disclaimer in the
       documentation and/or other materials provided with the distribution.
-    * Neither the name of Systems, Robotics and Vision Group, University of 
-      the Balearican Islands nor the names of its contributors may be used to 
-      endorse or promote products derived from this software without specific 
+    * Neither the name of Systems, Robotics and Vision Group, University of
+      the Balearican Islands nor the names of its contributors may be used to
+      endorse or promote products derived from this software without specific
       prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
@@ -33,35 +33,32 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 PKG = 'bag_tools' # this package name
 
 import roslib; roslib.load_manifest(PKG)
-import rospy
-import rosbag
-import os
-import sys
-import argparse
+import yaml
+import sensor_msgs.msg
 
-def extract_topics(inbag,outbag,topics):
-  rospy.loginfo('   Processing input bagfile: %s', inbag)
-  rospy.loginfo('  Writing to output bagfile: %s', outbag)
-  rospy.loginfo('          Extracting topics: %s', topics)
-
-  outbag = rosbag.Bag(outbag,'w')
-  for topic, msg, t in rosbag.Bag(inbag,'r').read_messages():
-    if topic in topics:
-      outbag.write(topic, msg, t)
-  rospy.loginfo('Closing output bagfile and exit...')
-  outbag.close();
+def parse_yaml(filename):
+  stream = file(filename, 'r')
+  calib_data = yaml.load(stream)
+  cam_info = sensor_msgs.msg.CameraInfo()
+  cam_info.width = calib_data['image_width']
+  cam_info.height = calib_data['image_height']
+  cam_info.header.frame_id = calib_data['camera_name']
+  cam_info.K = calib_data['camera_matrix']['data']
+  cam_info.D = calib_data['distortion_coefficients']['data']
+  cam_info.R = calib_data['rectification_matrix']['data']
+  cam_info.P = calib_data['projection_matrix']['data']
+  cam_info.distortion_model = calib_data['distortion_model']
+  return cam_info
 
 if __name__ == "__main__":
-  parser = argparse.ArgumentParser(
-      description='Extracts topics from a bagfile into another bagfile.')
-  parser.add_argument('inbag', help='input bagfile')
-  parser.add_argument('outbag', help='output bagfile')
-  parser.add_argument('topics', nargs='+', help='topics to extract')
+  rospy.init_node('camera_info_parser')
+  import argparse
+  parser = argparse.ArgumentParser(description='Parses camera info yaml files and returns them as sensor_msgs.msg.CameraInfo.')
+  parser.add_argument('filename', help='input yaml file')
   args = parser.parse_args()
- 
   try:
-    extract_topics(args.inbag,args.outbag,args.topics)
+    info = parse_yaml(args.filename)
+    rospy.loginfo('Read the following info from %s\n%s', args.filename, info)
   except Exception, e:
     import traceback
     traceback.print_exc()
-
