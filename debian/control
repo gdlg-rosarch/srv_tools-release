@@ -1,0 +1,12 @@
+Source: ros-kinetic-bag-tools
+Section: misc
+Priority: extra
+Maintainer: Miquel Massot <miquel.massot@uib.es>
+Build-Depends: debhelper (>= 9.0.0), libconsole-bridge-dev, ros-kinetic-camera-calibration-parsers, ros-kinetic-catkin, ros-kinetic-cv-bridge, ros-kinetic-image-geometry, ros-kinetic-image-proc, ros-kinetic-message-filters, ros-kinetic-rosbag, ros-kinetic-rospy, ros-kinetic-sensor-msgs, ros-kinetic-stereo-image-proc
+Homepage: http://ros.org/wiki/bag_tools
+Standards-Version: 3.9.2
+
+Package: ros-kinetic-bag-tools
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libconsole-bridge-dev, ros-kinetic-camera-calibration-parsers, ros-kinetic-cv-bridge, ros-kinetic-image-geometry, ros-kinetic-image-proc, ros-kinetic-message-filters, ros-kinetic-rosbag, ros-kinetic-rospy, ros-kinetic-sensor-msgs, ros-kinetic-stereo-image-proc
+Description: ROS tools and scripts related to bagfiles
