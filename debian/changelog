@@ -1,0 +1,20 @@
+ros-kinetic-plot-tools (0.0.3-0jessie) jessie; urgency=high
+
+  * Fix release
+  * Contributors: Miquel Massot
+
+ -- Pep Lluis Negre <plnegre@uib.cat>  Thu, 23 Feb 2017 23:00:00 -0000
+
+ros-kinetic-plot-tools (0.0.2-0jessie) jessie; urgency=high
+
+  * hydro catkinization changes
+  * added python setup files and wet'ed plot tools
+  * Legend now is the filename
+  * changed odom plot to open as many files as required
+  * changed the private name topics to input and output.
+  * NEW: plot_tools pkg with a python script for 3D real-time odometry visualization
+  * Contributors: Miquel Massot, plnegre
+
+ -- Pep Lluis Negre <plnegre@uib.cat>  Wed, 22 Feb 2017 23:00:00 -0000
+
+
